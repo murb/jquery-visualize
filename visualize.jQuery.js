@@ -115,15 +115,26 @@ $.fn.visualize = function(options, container){
 			};
 		}
 		
-	
+		var cols=[]
+		tableData.topRowSum = 0
 		var allItems = tableData.allItems = [];
 		$(dataGroups).each(function(i,row){
 			var count = 0;
 			$.each(row.points,function(j,point){
+				if (i == 0) cols[j]=0;
+				cols[j]+=point.value;
+				
 				allItems.push(point);
 				count += point.value;
 			});
 			row.groupTotal = count;
+			if ( row.groupTotal > tableData.topRowSum ) {
+				tableData.topRowSum = count;	
+			}	
+		});
+		tableData.topColSum = 0
+		$.each(cols,function(i,item){
+			if (item > tableData.topColSum) tableData.topColSum = item;
 		});
 		
 		tableData.dataSum = 0;
@@ -138,6 +149,9 @@ $.fn.visualize = function(options, container){
 				tableData.bottomValue = fnParse(item.value);	
 			}
 		});
+		var topColSum = tableData.topColSum;
+		
+		var topRowSum = tableData.topRowSum;
 		var dataSum = tableData.dataSum;
 		var topValue = tableData.topValue;
 		var bottomValue = tableData.bottomValue;
@@ -151,7 +165,6 @@ $.fn.visualize = function(options, container){
 		});
 		
 		var totalYRange = tableData.totalYRange = tableData.topValue - tableData.bottomValue;
-		
 		var zeroLocX = tableData.zeroLocX = 0;
 		
 		if($.isFunction(o.xLabelParser)) {
@@ -192,14 +205,22 @@ $.fn.visualize = function(options, container){
 		var zeroLocY = tableData.zeroLocY = (o.height-2*o.lineMargin) * (tableData.topValue/tableData.totalYRange) + o.lineMargin;
 		
 		var yLabels = tableData.yLabels = [];
+		var yLabelsStacked = tableData.yLabelsStacked = [];
 
 		var numLabels = Math.floor((o.height - 2*o.lineMargin) / 30);
 		var loopInterval = tableData.totalYRange / numLabels; //fix provided from lab
 		loopInterval = Math.round(parseFloat(loopInterval)/5)*5;
 		loopInterval = Math.max(loopInterval, 1);
+		var loopIntervalStacked = tableData.topColSum / numLabels; //fix provided from lab
+		loopIntervalStacked = Math.round(parseFloat(loopInterval)/5)*5;
+		loopIntervalStacked = Math.max(loopInterval, 1);
+		
 		// var start = 
 		for(var j=Math.round(parseInt(tableData.bottomValue)/5)*5; j<=tableData.topValue+loopInterval; j+=loopInterval){
 			yLabels.push(j); 
+		}
+		for(var j=0; j<=tableData.topColSum+loopIntervalStacked; j+=loopIntervalStacked){
+			yLabelsStacked.push(j); 
 		}
 		if(yLabels[yLabels.length-1] > tableData.topValue+loopInterval) {
 			yLabels.pop();
@@ -222,7 +243,7 @@ $.fn.visualize = function(options, container){
 		try{console.log(tableData);}catch(e){}
 		
 		var charts = {};
-		
+
 		charts.pie = {
 			interactionPoints: dataGroups,
 			
@@ -467,6 +488,180 @@ $.fn.visualize = function(options, container){
 			},
 			draw: charts.line.draw
 		};
+		
+		(function(){
+
+			var horizontal,bottomLabels;
+
+			charts.stackedbar = {
+				setup:function(){
+					/**
+					 * We can draw horizontal or vertical bars depending on the
+					 * value of the 'barDirection' option (which may be 'vertical' or
+					 * 'horizontal').
+					 */
+
+					horizontal = (o.barDirection == 'horizontal');
+
+					canvasContain.addClass('visualize-stackedbar');
+
+					/**
+					 * Write labels along the bottom of the chart.	If we're drawing
+					 * horizontal bars, these will be the yLabels, otherwise they
+					 * will be the xLabels.	The positioning also varies slightly:
+					 * yLabels are values, hence they will span the whole width of
+					 * the canvas, whereas xLabels are supposed to line up with the
+					 * bars.
+					 */
+					bottomLabels = horizontal ? yLabelsStacked : xLabels;
+
+					var xInterval = canvas.width() / (bottomLabels.length - (horizontal ? 1 : 0));
+
+					var xlabelsUL = $('<ul class="visualize-labels-x"></ul>')
+						.width(canvas.width())
+						.height(canvas.height())
+						.insertBefore(canvas);
+
+					$.each(bottomLabels, function(i){
+						var thisLi = $('<li><span class="label">'+this+'</span></li>')
+							.prepend('<span class="line" />')
+							.css('left', xInterval * i)
+							.width(xInterval)
+							.appendTo(xlabelsUL);
+
+						if (horizontal)	{
+							var label = thisLi.find('span.label');
+							label.css("margin-left", -label.width() / 2);
+						}
+					});
+
+					/**
+					 * Write labels along the left of the chart.	Follows the same idea
+					 * as the bottom labels.
+					 */
+					var leftLabels = horizontal ? xLabels : yLabelsStacked;
+					var liBottom = canvas.height() / (leftLabels.length - (horizontal ? 0 : 1));
+
+					var ylabelsUL = $('<ul class="visualize-labels-y"></ul>')
+						.width(canvas.width())
+						.height(canvas.height())
+						.insertBefore(canvas);
+
+					$.each(leftLabels, function(i){
+						var thisLi = $('<li><span>'+this+'</span></li>').prependTo(ylabelsUL);
+
+						var label = thisLi.find('span:not(.line)').addClass('label');
+
+						if (horizontal) {
+							/**
+							 * For left labels, we want to vertically align the text
+							 * to the middle of its container, but we don't know how
+							 * many lines of text we will have, since the labels could
+							 * be very long.
+							 *
+							 * So we set a min-height of liBottom, and a max-height
+							 * of liBottom + 1, so we can then check the label's actual
+							 * height to determine if it spans one line or more lines.
+							 */
+							label.css({
+								'min-height': liBottom,
+								'max-height': liBottom + 1,
+								'vertical-align': 'middle'
+							});
+							thisLi.css({'top': liBottom * i, 'min-height': liBottom});
+
+							var r = label[0].getClientRects()[0];
+							if (r.bottom - r.top == liBottom) {
+								/* This means we have only one line of text; hence
+								 * we can centre the text vertically by setting the line-height,
+								 * as described at:
+								 *   http://www.ampsoft.net/webdesign-l/vertical-aligned-nav-list.html
+								 *
+								 * (Although firefox has .height on the rectangle, IE doesn't,
+								 * so we use r.bottom - r.top rather than r.height.)
+								 */
+								label.css('line-height', parseInt(liBottom) + 'px');
+							}
+							else {
+								/*
+								 * If there is more than one line of text, then we shouldn't
+								 * touch the line height, but we should make sure the text
+								 * doesn't overflow the container.
+								 */
+								label.css("overflow", "hidden");
+							}
+						}
+						else {
+							thisLi.css('bottom', liBottom * i).prepend('<span class="line" />');
+							label.css('margin-top', -label.height() / 2)
+						}
+					});
+
+					charts.stackedbar.draw();
+
+				},
+
+				draw: function() {
+					// Draw bars
+
+					if (horizontal) {
+						// for horizontal, keep the same code, but rotate everything 90 degrees
+						// clockwise.
+						ctx.rotate(Math.PI / 2);
+					}
+					else {
+						// for vertical, translate to the top left corner.
+						ctx.translate(0, zeroLocY);
+					}
+
+					// Don't attempt to draw anything if all the values are zero,
+					// otherwise we will get weird exceptions from the canvas methods.
+					if (totalYRange <= 0)
+						return;
+						
+				
+					//totalYRange = 500;
+					
+					var yScale = (horizontal ? canvas.width() : canvas.height()) / topColSum;
+					var barWidth = horizontal ? (canvas.height() / xLabels.length) : (canvas.width() / (bottomLabels.length));
+					var linewidth = (barWidth);
+					var dataPointBases = []
+					
+					for(var h=0; h<dataGroups.length; h++){
+						ctx.beginPath();
+
+						var strokeWidth = linewidth - (o.barMargin*2);
+						ctx.lineWidth = strokeWidth;
+						var points = dataGroups[h].points;
+						var integer = 0;
+						var yVal = 0
+						
+
+						for(var i=0; i<points.length; i++){
+							if (h==0) dataPointBases[i]=0;
+							// If the last value is zero, IE will go nuts and not draw anything,
+							// so don't try to draw zero values at all.
+							if (points[i].value != 0) {
+								var xVal = (integer-o.barGroupMargin)+linewidth/2;
+								xVal += o.barGroupMargin;
+
+								ctx.moveTo(xVal, dataPointBases[i]);
+								dataPointBases[i] += Math.round(-points[i].value*yScale)
+								
+								ctx.lineTo(xVal, dataPointBases[i]);
+	                        }
+							integer+=barWidth;
+						}
+						ctx.strokeStyle = dataGroups[h].color;
+						ctx.stroke();
+						ctx.closePath();
+					}
+
+				}
+			};
+			
+		})();
+		
 		
 		(function(){
 
