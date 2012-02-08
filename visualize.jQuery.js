@@ -203,7 +203,7 @@ $.fn.visualize = function(options, container){
 		
 		var	yScale = tableData.yScale = (o.height - 2*o.lineMargin) / totalYRange;
 		var zeroLocY = tableData.zeroLocY = (o.height-2*o.lineMargin) * (tableData.topValue/tableData.totalYRange) + o.lineMargin;
-		
+		var zeroLocYStacked = tableData.zeroLocYStacked = (o.height);//topColSum;// (o.height-2*o.lineMargin) * (tableData.topValue/tableData.totalYRange) + o.lineMargin;
 		var yLabels = tableData.yLabels = [];
 		var yLabelsStacked = tableData.yLabelsStacked = [];
 
@@ -611,7 +611,7 @@ $.fn.visualize = function(options, container){
 					}
 					else {
 						// for vertical, translate to the top left corner.
-						ctx.translate(0, zeroLocY);
+						ctx.translate(0, zeroLocYStacked);
 					}
 
 					// Don't attempt to draw anything if all the values are zero,
@@ -619,10 +619,8 @@ $.fn.visualize = function(options, container){
 					if (totalYRange <= 0)
 						return;
 						
-				
-					//totalYRange = 500;
+					var yScale = (horizontal ? canvas.width() : canvas.height()) / (topColSum+10);
 					
-					var yScale = (horizontal ? canvas.width() : canvas.height()) / topColSum;
 					var barWidth = horizontal ? (canvas.height() / xLabels.length) : (canvas.width() / (bottomLabels.length));
 					var linewidth = (barWidth);
 					var dataPointBases = []
@@ -656,7 +654,6 @@ $.fn.visualize = function(options, container){
 						ctx.stroke();
 						ctx.closePath();
 					}
-
 				}
 			};
 			
