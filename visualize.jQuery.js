@@ -613,13 +613,13 @@ $.fn.visualize = function(options, container){
 						// for vertical, translate to the top left corner.
 						ctx.translate(0, zeroLocYStacked);
 					}
-
 					// Don't attempt to draw anything if all the values are zero,
 					// otherwise we will get weird exceptions from the canvas methods.
 					if (totalYRange <= 0)
 						return;
 						
-					var yScale = (horizontal ? canvas.width() : canvas.height()) / (topColSum+10);
+					var yScale = tableData.yScale = (((horizontal ? canvas.width() : canvas.height())) / (yLabelsStacked[yLabelsStacked.length-1])) 
+					
 					
 					var barWidth = horizontal ? (canvas.height() / xLabels.length) : (canvas.width() / (bottomLabels.length));
 					var linewidth = (barWidth);
